@@ -1,73 +1,50 @@
-# React + TypeScript + Vite
+# 选礼物助手 (gift-advisor)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+AI 驱动的个性化礼物推荐工具。回答 10 个关于收礼人的简单问题，AI 自动生成量身定制的礼物方案。
 
-Currently, two official plugins are available:
+## 功能
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- 10 道问卷覆盖：关系、预算、性别、年龄、场合、认识时长、兴趣、性格、风格偏好、特殊限制
+- 预算支持双滑块（金额 + 浮动比例），每道题支持自定义补充
+- DeepSeek AI 三阶段推荐：生成 → 审查过滤 → 程序化兜底校验
+- 每个推荐含：礼物名称、价格区间、一句话介绍、个性化理由、电商搜索关键词（可点击复制）
 
-## React Compiler
+## 快速开始
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# 安装依赖
+npm install
 
-## Expanding the ESLint configuration
+# 配置 API Key
+echo "DEEPSEEK_API_KEY=你的密钥" > .env
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 同时启动前端 + 后端
+npm run dev:all
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+启动后浏览器访问 `http://localhost:5173`。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 项目结构
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+gift-advisor/
+├── server.ts              ← 后端 API（Express + DeepSeek）
+├── src/
+│   ├── App.tsx            ← 主组件，状态机控制页面流转
+│   ├── App.css            ← 全部 UI 样式
+│   ├── index.css          ← CSS 变量、全局样式、dark mode
+│   ├── types.ts           ← 类型定义
+│   ├── version.ts         ← 版本号
+│   ├── data/questions.ts  ← 10 道问卷题目
+│   └── components/        ← UI 组件
+```
+
+## 技术栈
+
+- 前端：React 19 + Vite + TypeScript
+- 后端：Express + OpenAI SDK
+- AI：DeepSeek API
+
+## 许可证
+
+MIT
