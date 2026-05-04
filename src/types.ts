@@ -63,3 +63,9 @@ export interface Gift {
   reason: string;
   searchKeywords: string;
 }
+
+export interface HistoryRecord {
+  timestamp: number;
+  answers: Answers;
+  gifts: Gift[];
+}

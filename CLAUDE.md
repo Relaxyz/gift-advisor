@@ -45,6 +45,15 @@ welcome → questionnaire（10 题）→ review → recommendation
 - `answers`：用户答案，类型 `Answers`
 - `recommendations`：AI 返回的 `Gift[]`
 - `loading / apiError`：请求状态
+- `history`：最近 5 次推荐记录，存入 `localStorage`
+
+### 状态持久化
+
+- 会话状态（step、questionIndex、answers）自动存入 `localStorage`（key: `gift-advisor-session`）
+- 刷新页面后自动恢复到上次停留的步骤
+- 点击"重新开始"清除会话
+- 历史记录存入 `localStorage`（key: `gift-advisor-history`），最多保留 5 条
+- 首页显示最近记录列表，可点击快速查看历史推荐
 
 ## 题目类型（QuestionType）
 
