@@ -288,6 +288,8 @@ export default function App() {
       {step === 'recommendation' && (
         <RecommendationCard
           gifts={recommendations}
+          answers={answers}
+          activeQuestions={activeQuestions}
           onRestart={handleRestart}
           onBack={() => setStep('review')}
         />
