@@ -633,6 +633,20 @@
   text-align: left;
 }
 
+.review-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.review-actions .btn-primary {
+  flex: 1;
+}
+
+.review-actions .btn-secondary {
+  flex-shrink: 0;
+}
+
 .review-edit-hint {
   font-size: 15px;
   color: var(--accent);

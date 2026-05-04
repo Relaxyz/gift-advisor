@@ -81,6 +81,7 @@ export const questions: Question[] = [
     sliderMax: 30,
     sliderStep: 1,
     sliderUnit: '年',
+    skipWhen: { key: 'relationship', values: ['家人/亲戚'] },
     options: [],
   },
   {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import './App.css';
 import type { Step, Answers, AnswerKey, Gift, HistoryRecord } from './types';
 import { SUPPLEMENT_VALUE } from './types';
@@ -28,6 +28,14 @@ const defaultAnswers: Answers = {
   budgetFlexibility: '20',
   supplement: {},
 };
+
+function getActiveQuestions(answers: Answers) {
+  return questions.filter((q) => {
+    if (!q.skipWhen) return true;
+    const depVal = answers[q.skipWhen.key];
+    return !q.skipWhen.values.includes(depVal as string);
+  });
+}
 
 function loadSession(): { step: Step; questionIndex: number; answers: Answers; recommendations: Gift[] } | null {
   try {
@@ -72,6 +80,8 @@ export default function App() {
   const [apiError, setApiError] = useState(false);
   const [history, setHistory] = useState<HistoryRecord[]>(loadHistory);
 
+  const activeQuestions = useMemo(() => getActiveQuestions(answers), [answers]);
+
   // 会话状态变更时持久化
   useEffect(() => {
     if (step === 'welcome') {
@@ -82,8 +92,23 @@ export default function App() {
   }, [step, questionIndex, answers]);
 
   const handleAnswerChange = useCallback((key: AnswerKey, value: string | string[]) => {
-    setAnswers((prev) => ({ ...prev, [key]: value }));
-  }, []);
+    setAnswers((prev) => {
+      const next = { ...prev, [key]: value };
+      // 当 relationship 变更导致 activeQuestions 变化时，修正 questionIndex
+      const prevActive = getActiveQuestions(prev);
+      const nextActive = getActiveQuestions(next);
+      if (prevActive.length !== nextActive.length) {
+        // 如果当前问题被跳过，自动前进到下一个有效问题
+        const currentId = prevActive[questionIndex]?.id;
+        const newIdx = nextActive.findIndex((q) => q.id === currentId);
+        if (newIdx === -1 && questionIndex >= nextActive.length) {
+          // 当前问题不在新列表中，跳到末尾
+          setTimeout(() => setQuestionIndex(nextActive.length - 1), 0);
+        }
+      }
+      return next;
+    });
+  }, [questionIndex]);
 
   const handleSupplementChange = useCallback((key: AnswerKey, text: string) => {
     setAnswers((prev) => ({
@@ -96,10 +121,11 @@ export default function App() {
     setAnswers((prev) => ({ ...prev, budgetFlexibility: val }));
   }, []);
 
-  const currentQ = () => questions[questionIndex];
+  const currentQ = () => activeQuestions[questionIndex];
 
   const canProceed = (): boolean => {
     const q = currentQ();
+    if (!q) return false;
     const val = answers[q.id];
     const suppText = (answers.supplement?.[q.id] ?? '').trim();
 
@@ -121,9 +147,15 @@ export default function App() {
       setStep('review');
       return;
     }
-    if (questionIndex < questions.length - 1) {
+    if (questionIndex < activeQuestions.length - 1) {
       setQuestionIndex((i) => i + 1);
     } else {
+      // 跳过的问题自动填默认值
+      const finalAnswers = { ...answers };
+      if (!finalAnswers.knowDuration) {
+        finalAnswers.knowDuration = String(Math.min(Number(finalAnswers.ageRange) || 20, 30));
+      }
+      setAnswers(finalAnswers);
       setStep('review');
     }
   };
@@ -139,20 +171,28 @@ export default function App() {
     }
   };
 
-  const handleEdit = (idx: number) => {
+  const handleEdit = (qId: AnswerKey) => {
+    const idx = activeQuestions.findIndex((q) => q.id === qId);
+    if (idx === -1) return;
     setQuestionIndex(idx);
     setEditingFromReview(true);
     setStep('questionnaire');
   };
 
   const handleConfirm = async () => {
+    // 跳过的问题自动填默认值
+    const finalAnswers = { ...answers };
+    if (!finalAnswers.knowDuration) {
+      finalAnswers.knowDuration = String(Math.min(Number(finalAnswers.ageRange) || 20, 30));
+    }
+
     setLoading(true);
     setApiError(false);
     try {
       const resp = await fetch('/api/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers: finalAnswers }),
       });
       if (resp.ok) {
         const data = await resp.json();
@@ -160,10 +200,9 @@ export default function App() {
           setRecommendations(data.gifts);
           setStep('recommendation');
 
-          // 存入历史记录
           const record: HistoryRecord = {
             timestamp: Date.now(),
-            answers: structuredClone(answers),
+            answers: structuredClone(finalAnswers),
             gifts: data.gifts,
           };
           setHistory((prev) => {
@@ -215,7 +254,7 @@ export default function App() {
       {step === 'questionnaire' && (
         <>
           {!editingFromReview && (
-            <ProgressBar current={questionIndex + 1} total={questions.length} />
+            <ProgressBar current={questionIndex + 1} total={activeQuestions.length} />
           )}
           <QuestionCard
             question={currentQ()}
@@ -226,7 +265,7 @@ export default function App() {
             onNext={handleNext}
             onPrev={handlePrev}
             isFirst={questionIndex === 0 && !editingFromReview}
-            isLast={editingFromReview || questionIndex === questions.length - 1}
+            isLast={editingFromReview || questionIndex === activeQuestions.length - 1}
             canProceed={canProceed()}
             isSingleEdit={editingFromReview}
             budgetFlexibility={answers.budgetFlexibility}
@@ -238,6 +277,7 @@ export default function App() {
       {step === 'review' && (
         <ReviewPanel
           answers={answers}
+          activeQuestions={activeQuestions}
           onEdit={handleEdit}
           onConfirm={handleConfirm}
           loading={loading}

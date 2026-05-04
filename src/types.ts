@@ -52,6 +52,8 @@ export interface Question {
   flexMax?: number;
   flexStep?: number;
   flexUnit?: string;
+  /** 跳过条件：当指定答案匹配列表中的任意值时，此题不显示 */
+  skipWhen?: { key: AnswerKey; values: string[] };
 }
 
 export interface Gift {
