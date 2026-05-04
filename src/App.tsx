@@ -23,7 +23,7 @@ const defaultAnswers: Answers = {
   knowDuration: '',
   interests: [],
   personality: [],
-  giftStyle: '',
+  giftStyle: [],
   restrictions: [],
   budgetFlexibility: '20',
   supplement: {},

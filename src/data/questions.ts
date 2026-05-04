@@ -121,9 +121,9 @@ export const questions: Question[] = [
   },
   {
     id: 'giftStyle',
-    title: '你更倾向于哪种风格的礼物？',
-    subtitle: '同样的预算会产生完全不同的路线，选择最接近你想法的方向',
-    type: 'single',
+    title: '你更倾向于哪种风格的礼物？（可多选）',
+    subtitle: '同样的预算会产生完全不同的路线，可多选搭配',
+    type: 'multi',
     options: [
       { value: '实用主义', label: '实用至上 —— 对方每天都用得上', icon: '👍' },
       { value: '情感纪念', label: '情感纪念 —— 重在心意和回忆', icon: '💝' },
@@ -141,9 +141,13 @@ export const questions: Question[] = [
     options: [
       { value: '不要食品', label: '不要食品类' },
       { value: '不要衣物', label: '不要衣物/配饰类' },
+      { value: '不要化妆品', label: '不要化妆品/护肤品' },
       { value: '偏好数码', label: '偏好数码产品' },
       { value: '偏好手工', label: '偏好手工/定制类' },
-      { value: '偏好体验', label: '偏好体验类（旅行/演出等）' },
+      { value: '偏好体验', label: '偏好体验（旅行/演出/课程）' },
+      { value: '偏好大品牌', label: '偏好知名大品牌' },
+      { value: '偏好小众', label: '偏好小众/独立品牌' },
+      { value: '偏好环保', label: '偏好环保/可持续' },
     ],
   },
 ];

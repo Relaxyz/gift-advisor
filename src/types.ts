@@ -9,7 +9,7 @@ export interface Answers {
   knowDuration: string;
   interests: string[];
   personality: string[];
-  giftStyle: string;
+  giftStyle: string[];
   restrictions: string[];
   budgetFlexibility: string;
   supplement: Partial<Record<AnswerKey, string>>;

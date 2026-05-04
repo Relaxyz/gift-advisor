@@ -41,17 +41,18 @@ function validateGift(g: any, index: number): Gift | null {
   }
 }
 
-function parseBudget(answers: Answers): { amount: number; flexibility: number; maxPrice: number } {
+function parseBudget(answers: Answers): { amount: number; flexibility: number; minPrice: number; maxPrice: number } {
   const amount = parseInt(answers.budget, 10) || 500
   const flexVal = parseInt(answers.budgetFlexibility, 10)
   const flexibility = isNaN(flexVal) ? 20 : flexVal
+  const minPrice = Math.round(amount * (1 - flexibility / 100))
   const maxPrice = Math.round(amount * (1 + flexibility / 100))
-  return { amount, flexibility, maxPrice }
+  return { amount, flexibility, minPrice, maxPrice }
 }
 
 /** 格式化用户答案用于 prompt */
 function formatAnswers(answers: Answers): string {
-  const { amount, flexibility, maxPrice } = parseBudget(answers)
+  const { amount, flexibility, minPrice, maxPrice } = parseBudget(answers)
 
   const ageLabel = answers.ageRange
     ? (() => {
@@ -94,14 +95,14 @@ function formatAnswers(answers: Answers): string {
 
   return [
     `- 与收礼人的关系：${answers.relationship}`,
-    `- 预算范围：${amount} 元（可浮动 ±${flexibility}%，即最高 ${maxPrice} 元）`,
+    `- 预算范围：${amount} 元（可浮动 ±${flexibility}%，即 ${minPrice} - ${maxPrice} 元）`,
     `- 收礼人性别：${answers.gender}`,
     `- 收礼人年龄：${ageLabel}`,
     `- 送礼场合：${answers.occasion}`,
     `- 认识时长：${durationLabel}`,
     `- 兴趣爱好：${interestsText}`,
     `- 性格特点：${personalityText}`,
-    `- 礼物风格偏好：${answers.giftStyle}`,
+    `- 礼物风格偏好：${Array.isArray(answers.giftStyle) ? answers.giftStyle.join('、') || '未提供' : answers.giftStyle}`,
     `- 特殊限制：${restrictionsText}`,
     supplementLines ? supplementLines : '',
   ].filter(Boolean).join('\n')
@@ -110,7 +111,7 @@ function formatAnswers(answers: Answers): string {
 /** 第一阶段：AI 生成礼物推荐 */
 async function generateGifts(answers: Answers): Promise<any[]> {
   const answersBlock = formatAnswers(answers)
-  const { amount, flexibility, maxPrice } = parseBudget(answers)
+  const { amount, flexibility, minPrice, maxPrice } = parseBudget(answers)
 
   const prompt = `你是一个经验丰富的礼物推荐专家。用户填写了一份关于收礼人的详细问卷。请根据问卷内容，**从你的知识中自由推荐 4~6 个最合适的礼物**（后面会再做一轮筛选，所以多推荐几个），不要从任何固定列表中选择，也不要推荐泛泛的万能型礼物。
 
@@ -118,7 +119,7 @@ async function generateGifts(answers: Answers): Promise<any[]> {
 ${answersBlock}
 
 ## 推荐规则（请严格遵守）
-1. **预算硬约束（最重要）**：用户预算为 ${amount} 元，允许上浮 ${flexibility}%，即单个礼物最高价格为 ${maxPrice} 元。每个推荐礼物的 priceMax 必须 ≤ ${maxPrice}。绝对不要推荐任何价格超过 ${maxPrice} 元的礼物。
+1. **预算硬约束（最重要）**：用户预算为 ${amount} 元，允许浮动 ±${flexibility}%，即礼物价格应在 ${minPrice}-${maxPrice} 元之间。每个推荐礼物的 priceMax 必须 ≤ ${maxPrice}，priceMin 不应低于 ${minPrice}。不要推荐太便宜或太贵的礼物。
 2. **高度个性化**：不要推荐"鲜花"、"巧克力"这类万能但不走心的通用礼物。每个推荐都要结合收礼人的关系、年龄、场合、兴趣、性格、风格偏好这六大维度，生成真正量身定制的礼物方案。
 3. **多样性与场景感**：4~6 个礼物应覆盖不同类型（实用类、体验类、创意类、品质类等），避免全是一个品类。不同场合的礼物策略要完全不同。
 4. **礼物要具体可操作**：礼物名称要具体到品牌或品类（如"JBL GO4 便携蓝牙音箱"而不是"音箱"），让用户一看就知道该买什么。
@@ -130,6 +131,10 @@ ${answersBlock}
         if (r === '偏好数码') return '优先推荐数码科技类产品'
         if (r === '偏好手工') return '优先推荐手工定制类礼物'
         if (r === '偏好体验') return '优先推荐体验类礼物（旅行、演出、课程等）'
+        if (r === '不要化妆品') return '绝不推荐任何化妆品、护肤品、香水类礼物'
+        if (r === '偏好大品牌') return '优先推荐知名品牌/一线品牌的礼物'
+        if (r === '偏好小众') return '优先推荐小众独立品牌/设计师款'
+        if (r === '偏好环保') return '优先推荐环保可持续材质的礼物'
         return ''
       }).filter(Boolean).join('；')
     : '无特殊限制'}
@@ -166,7 +171,7 @@ ${answersBlock}
 /** 第二阶段：AI 过滤不合格的礼物 */
 async function filterGifts(candidates: any[], answers: Answers): Promise<any[]> {
   const answersBlock = formatAnswers(answers)
-  const { maxPrice } = parseBudget(answers)
+  const { minPrice, maxPrice } = parseBudget(answers)
 
   const candidatesBlock = candidates
     .map((g, i) => `[${i}] ${g.name}｜¥${g.priceMin}-${g.priceMax}｜${g.description}｜理由：${g.reason}`)
@@ -182,7 +187,7 @@ async function filterGifts(candidates: any[], answers: Answers): Promise<any[]> 
 ${answersBlock}
 
 ## 审核标准
-- ❌ 价格超过 ${maxPrice} 元 → 直接剔除。价格必须 ≤ ${maxPrice} 元，没有任何例外。
+- ❌ 价格不在 ${minPrice}-${maxPrice} 元范围内 → 直接剔除。priceMax 必须 ≤ ${maxPrice}，priceMax 不应低于 ${minPrice}。太便宜或太贵都不行。
 - ❌ 与收礼人关系不匹配（比如送给同事的却推荐了情侣款）→ 剔除
 - ❌ 与送礼场合完全不符合 → 剔除
 - ❌ 与用户设置的特殊限制冲突 → 用户限制为「${restrictions}」。如有"不要食品"则绝对不能推荐任何食品/零食/饮料；如有"不要衣物"则绝对不能推荐任何衣物/配饰/鞋帽。违反限制 = 直接剔除。
@@ -226,16 +231,23 @@ ${candidatesBlock}
 
 /** 程序化过滤：对 AI 过滤后的结果再做一次确定性检查 */
 function programmaticFilter(gifts: any[], answers: Answers): any[] {
-  const { maxPrice } = parseBudget(answers)
+  const { minPrice, maxPrice } = parseBudget(answers)
   const restrictions: string[] = Array.isArray(answers.restrictions) ? answers.restrictions : []
 
   const foodKw = ['食品', '零食', '巧克力', '糖果', '饼干', '蛋糕', '坚果', '月饼', '粽子', '糕点', '蜂蜜', '果酱', '熟食', '腊肉', '香肠', '小吃', '甜点', '曲奇', '特产', '美食', '咖啡豆', '茶叶']
   const clothingKw = ['衣服', '衣物', '衬衫', 'T恤', '裤子', '裙', '帽子', '围巾', '手套', '袜子', '鞋子', '腰带', '领带', '配饰', '首饰', '项链', '手链', '耳环', '戒指', '香水', '墨镜', '太阳镜', '包包']
+  const cosmeticKw = ['化妆品', '护肤品', '口红', '粉底', '面膜', '眼影', '腮红', '精华', '面霜', '乳液', '洗面奶', '防晒', '卸妆', '隔离', '气垫', '遮瑕', '眉笔', '眼线', '睫毛膏', '散粉', 'BB霜', 'CC霜', '妆前乳']
 
   const filtered = gifts.filter((g, i) => {
-    if (typeof g.priceMax === 'number' && g.priceMax > maxPrice) {
-      console.log(`[programmatic] #${i} "${g.name}" priceMax=${g.priceMax} > ${maxPrice}, removed`)
-      return false
+    if (typeof g.priceMax === 'number') {
+      if (g.priceMax > maxPrice) {
+        console.log(`[programmatic] #${i} "${g.name}" priceMax=${g.priceMax} > ${maxPrice}, removed`)
+        return false
+      }
+      if (g.priceMax < minPrice) {
+        console.log(`[programmatic] #${i} "${g.name}" priceMax=${g.priceMax} < ${minPrice}, too cheap, removed`)
+        return false
+      }
     }
 
     const haystack = ((g.name ?? '') + (g.description ?? '')).toLowerCase()
@@ -253,6 +265,15 @@ function programmaticFilter(gifts: any[], answers: Answers): any[] {
       for (const kw of clothingKw) {
         if (haystack.includes(kw)) {
           console.log(`[programmatic] #${i} "${g.name}" matches clothing keyword "${kw}", removed`)
+          return false
+        }
+      }
+    }
+
+    if (restrictions.includes('不要化妆品')) {
+      for (const kw of cosmeticKw) {
+        if (haystack.includes(kw)) {
+          console.log(`[programmatic] #${i} "${g.name}" matches cosmetic keyword "${kw}", removed`)
           return false
         }
       }
