@@ -37,6 +37,49 @@ const defaultAnswers: Answers = {
 
 type Step = 'welcome' | 'questionnaire' | 'review' | 'filtering' | 'recommendation';
 
+const UNLIMITED_STORAGE_KEY = 'gift-advisor-unlimited-key';
+
+function getSavedUnlimitedKey(): string {
+  try {
+    return localStorage.getItem(UNLIMITED_STORAGE_KEY) || '';
+  } catch { return ''; }
+}
+
+function UnlimitedInputInError({ onDismiss }: { onDismiss: () => void }) {
+  const [value, setValue] = useState(getSavedUnlimitedKey);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    const trimmed = value.trim();
+    if (trimmed) {
+      localStorage.setItem(UNLIMITED_STORAGE_KEY, trimmed);
+    } else {
+      localStorage.removeItem(UNLIMITED_STORAGE_KEY);
+    }
+    setSaved(true);
+    setTimeout(() => {
+      setSaved(false);
+      onDismiss();
+    }, 1500);
+  };
+
+  return (
+    <div className="error-unlimited">
+      <input
+        type="password"
+        className="error-unlimited-input"
+        placeholder="输入解除限制密钥"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+      />
+      <button className="btn-secondary error-unlimited-btn" onClick={handleSave}>
+        {saved ? '已保存' : '解除限制'}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [step, setStep] = useState<Step>('welcome');
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -391,7 +434,10 @@ export default function App() {
         {apiError && (
           <div className="error-banner">
             <p>{apiError}</p>
-            <button onClick={() => setApiError(null)}>关闭</button>
+            <div className="error-banner-actions">
+              <button onClick={() => setApiError(null)}>关闭</button>
+            </div>
+            {apiError.includes('限') && <UnlimitedInputInError onDismiss={() => setApiError(null)} />}
           </div>
         )}
       </div>
