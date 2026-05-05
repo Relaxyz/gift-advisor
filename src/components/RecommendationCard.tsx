@@ -3,6 +3,8 @@ import type { Gift } from '../types';
 interface Props {
   gifts: Gift[];
   onRestart: () => void;
+  onBackToReview?: () => void;
+  onBackToFilter?: () => void;
 }
 
 function formatPrice(min: number, max: number) {
@@ -37,7 +39,7 @@ ${giftBlocks}
 `;
 }
 
-export default function RecommendationCard({ gifts, onRestart }: Props) {
+export default function RecommendationCard({ gifts, onRestart, onBackToReview, onBackToFilter }: Props) {
   const handleExport = () => {
     const md = exportMarkdown(gifts);
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
@@ -95,6 +97,16 @@ export default function RecommendationCard({ gifts, onRestart }: Props) {
       </div>
 
       <div className="rec-actions">
+        {onBackToFilter && (
+          <button className="btn-secondary" onClick={onBackToFilter}>
+            返回筛选
+          </button>
+        )}
+        {onBackToReview && (
+          <button className="btn-secondary" onClick={onBackToReview}>
+            修改条件
+          </button>
+        )}
         <button className="btn-secondary" onClick={handleExport}>
           导出结果 (.md)
         </button>

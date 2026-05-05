@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { HistoryItem } from '../types';
+import type { HistoryItem, Answers } from '../types';
+import { SUPPLEMENT_VALUE } from '../types';
 
 interface Props {
   onStart: () => void;
@@ -15,6 +16,13 @@ function getSavedKey(): string {
   } catch {
     return '';
   }
+}
+
+function getDisplayOccasion(answers: Answers): string {
+  if (answers.occasion === SUPPLEMENT_VALUE) {
+    return answers.supplement?.occasion?.trim() || '礼物推荐';
+  }
+  return answers.occasion || '礼物推荐';
 }
 
 export default function WelcomeScreen({ onStart, history = [], onLoadHistory }: Props) {
@@ -59,7 +67,7 @@ export default function WelcomeScreen({ onStart, history = [], onLoadHistory }: 
               >
                 <div className="history-info">
                   <span className="history-occasion">
-                    {item.answers.occasion || '礼物推荐'}
+                    {getDisplayOccasion(item.answers)}
                   </span>
                   <span className="history-time">
                     {new Date(item.timestamp).toLocaleDateString()}

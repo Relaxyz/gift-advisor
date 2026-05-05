@@ -140,5 +140,6 @@ export interface RecommendRequest {
 export interface HistoryItem {
   timestamp: string;
   answers: Answers;
+  candidates?: Gift[];
   gifts: Gift[];
 }

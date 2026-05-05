@@ -235,7 +235,7 @@ export default function App() {
       } else {
         setRecommendations(result.gifts);
         setStep('recommendation');
-        saveToHistory(answers, result.gifts);
+        saveToHistory(answers, result.gifts, candidates);
       }
     } catch (e: unknown) {
       console.error('API error:', e);
@@ -253,7 +253,7 @@ export default function App() {
       const result = await filterCandidates(candidates, selectedCandidateIds, answer);
       setRecommendations(result.gifts);
       setStep('recommendation');
-      saveToHistory(answers, result.gifts);
+      saveToHistory(answers, result.gifts, candidates);
     } catch (e: unknown) {
       console.error('API error:', e);
       setApiError(e instanceof Error ? e.message : '请求失败，请重试');
@@ -262,10 +262,11 @@ export default function App() {
     }
   };
 
-  const saveToHistory = (ans: Answers, gifts: Gift[]) => {
+  const saveToHistory = (ans: Answers, gifts: Gift[], cands: Gift[]) => {
     const newItem: HistoryItem = {
       timestamp: new Date().toISOString(),
       answers: ans,
+      candidates: cands,
       gifts,
     };
     const updated = [newItem, ...history].slice(0, 5);
@@ -288,8 +289,18 @@ export default function App() {
   // 从历史记录加载
   const handleLoadHistory = (item: HistoryItem) => {
     setAnswers(item.answers);
+    setCandidates(item.candidates || []);
     setRecommendations(item.gifts);
     setStep('recommendation');
+  };
+
+  const handleBackToReview = () => {
+    setStep('review');
+  };
+
+  const handleBackToFilter = () => {
+    setStep('filtering');
+    setFilterPhase('select');
   };
 
   // 根据 step 渲染进度条
@@ -370,6 +381,8 @@ export default function App() {
           <RecommendationCard
             gifts={recommendations}
             onRestart={handleRestart}
+            onBackToReview={handleBackToReview}
+            onBackToFilter={candidates.length > 0 ? handleBackToFilter : undefined}
           />
         )}
 
