@@ -4,6 +4,7 @@ import type { Gift, FilterQuestion } from '../types';
 interface Props {
   candidates: Gift[];
   onConfirm: (selectedIds: string[]) => void;
+  onRestart: () => void;
   filterQuestion?: FilterQuestion;
   onFilterAnswer?: (answer: string) => void;
   loading?: boolean;
@@ -12,6 +13,7 @@ interface Props {
 export default function CandidateFilter({
   candidates,
   onConfirm,
+  onRestart,
   filterQuestion,
   onFilterAnswer,
   loading,
@@ -86,6 +88,9 @@ export default function CandidateFilter({
           >
             跳过，直接看结果
           </button>
+          <button className="btn-text" onClick={onRestart}>
+            返回首页
+          </button>
         </div>
       </div>
     );
@@ -136,6 +141,9 @@ export default function CandidateFilter({
           onClick={() => onConfirm(candidates.map(g => g.id))}
         >
           全部保留，直接看结果
+        </button>
+        <button className="btn-text" onClick={onRestart}>
+          返回首页
         </button>
       </div>
     </div>

@@ -10,6 +10,7 @@ interface Props {
   onSupplementChange: (key: AnswerKey, text: string) => void;
   onNext: () => void;
   onPrev: () => void;
+  onRestart: () => void;
   isFirst: boolean;
   isLast: boolean;
   canProceed: boolean;
@@ -34,6 +35,7 @@ export default function QuestionCard({
   onSupplementChange,
   onNext,
   onPrev,
+  onRestart,
   isFirst,
   isLast,
   canProceed,
@@ -365,6 +367,9 @@ export default function QuestionCard({
             返回确认页
           </button>
         )}
+        <button className="btn-text" onClick={onRestart}>
+          返回首页
+        </button>
       </div>
     </div>
   );

@@ -343,6 +343,7 @@ export default function App() {
             onSupplementChange={handleSupplementChange}
             onNext={handleNext}
             onPrev={handlePrev}
+            onRestart={handleRestart}
             isFirst={isFirst}
             isLast={isLast}
             canProceed={canProceed()}
@@ -371,6 +372,7 @@ export default function App() {
           <CandidateFilter
             candidates={candidates}
             onConfirm={handleFilterConfirm}
+            onRestart={handleRestart}
             filterQuestion={filterPhase === 'question' ? filterQuestion || undefined : undefined}
             onFilterAnswer={handleFilterAnswer}
             loading={loading}
