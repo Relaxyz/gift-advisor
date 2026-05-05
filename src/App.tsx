@@ -270,7 +270,7 @@ export default function App() {
     setSelectedCandidateIds(selectedIds);
 
     try {
-      const result = await filterCandidates(candidates, selectedIds);
+      const result = await filterCandidates(answers, candidates, selectedIds);
 
       if (result.filterQuestion) {
         setFilterQuestion(result.filterQuestion);
@@ -293,7 +293,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const result = await filterCandidates(candidates, selectedCandidateIds, answer);
+      const result = await filterCandidates(answers, candidates, selectedCandidateIds, answer);
       setRecommendations(result.gifts);
       setStep('recommendation');
       saveToHistory(answers, result.gifts, candidates);
@@ -416,6 +416,7 @@ export default function App() {
             candidates={candidates}
             onConfirm={handleFilterConfirm}
             onRestart={handleRestart}
+            preselectedIds={selectedCandidateIds}
             filterQuestion={filterPhase === 'question' ? filterQuestion || undefined : undefined}
             onFilterAnswer={handleFilterAnswer}
             loading={loading}

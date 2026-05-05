@@ -32,11 +32,13 @@ export async function generateCandidates(answers: Answers): Promise<Gift[]> {
 }
 
 export async function filterCandidates(
+  answers: Answers,
   candidates: Gift[],
   selectedIds: string[],
   secondRoundAnswer?: string,
 ): Promise<{ gifts: Gift[]; filterQuestion?: FilterQuestion }> {
   const data = await post('/api/recommend', {
+    answers,
     candidates,
     selectedCandidates: selectedIds,
     secondRoundAnswer,

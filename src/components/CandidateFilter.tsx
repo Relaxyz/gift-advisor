@@ -5,6 +5,7 @@ interface Props {
   candidates: Gift[];
   onConfirm: (selectedIds: string[]) => void;
   onRestart: () => void;
+  preselectedIds?: string[];
   filterQuestion?: FilterQuestion;
   onFilterAnswer?: (answer: string) => void;
   loading?: boolean;
@@ -14,6 +15,7 @@ export default function CandidateFilter({
   candidates,
   onConfirm,
   onRestart,
+  preselectedIds,
   filterQuestion,
   onFilterAnswer,
   loading,
@@ -84,7 +86,7 @@ export default function CandidateFilter({
           </button>
           <button
             className="btn-skip"
-            onClick={() => onConfirm(Array.from(selectedIds))}
+            onClick={() => onConfirm(preselectedIds || [])}
           >
             跳过，直接看结果
           </button>
