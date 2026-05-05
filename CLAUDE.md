@@ -74,35 +74,31 @@ welcome → questionnaire（10 题）→ review → recommendation
 - `allowEmpty: true` 的多选题可以不选任何选项
 - 常量 `SUPPLEMENT_VALUE = '__supplement__'` 标识用户选择了补充项
 
-## 后端推荐架构（三阶段管道）
+## 后端推荐架构（两阶段管道）
 
-`server.ts` 提供 `POST /api/recommend`，接收 `{ answers }` 返回 `{ gifts: Gift[] }`。
+`server.ts` 提供 `POST /api/recommend`，接收 `{ answers, candidates?, selectedCandidates?, secondRoundAnswer? }` 返回 `RecommendResponse`。
 
-### 第一阶段：AI 生成（generateGifts）
+### 第一阶段：AI 生成（generateCandidates）
 - 模型：`deepseek-chat`，temperature=0.7
-- 将用户答案格式化为 prompt，要求 AI 自由生成 4-6 个礼物
-- prompt 中包含：预算硬约束（精确到元）、关系/年龄/场合/兴趣/性格/风格六大维度、限制排除规则、中国电商价格参考
-- 返回 JSON：`{ gifts: [{ name, priceMin, priceMax, description, reason, searchKeywords }] }`
+- 将用户答案格式化为 prompt，要求 AI 自由生成 8-12 个候选礼物
+- prompt 中包含：预算硬约束、关系/年龄/场合/兴趣/性格/风格维度、8 种排除规则、中国电商价格参考
+- 返回 JSON：`{ gifts: [{ id, name, priceMin, priceMax, description, reason, searchKeywords }] }`
 
-### 第二阶段：AI 过滤（filterGifts）
-- 模型：`deepseek-chat`，temperature=0.3
-- 将第一阶段结果和用户条件再次提交给 AI 审核
-- 审核标准：价格、关系匹配、场合匹配、限制冲突、价格合理性
-- 返回通过的索引数组 `{ passed: [0,2,4], rejected: [...] }`
-- 失败时降级：跳过过滤，使用未过滤结果
+### 第二阶段：AI 筛选（filterCandidates）
+- 用户从前端选中多个候选 → 发到后端
+- 选中 ≤4 个 → 直接返回最终结果
+- 选中 >4 个且无筛选答案 → AI 生成一个筛选问题（3 个选项）
+- 有筛选答案 → AI 根据答案从候选中挑出 3-5 个最终推荐
 
-### 第三阶段：程序化确定性过滤（programmaticFilter）
-- 纯代码过滤，不依赖 AI，作为兜底
-- 价格检查：`gift.priceMax > maxPrice` → 直接剔除
-- 关键词检查：如果选了"不要食品"/"不要衣物"，对礼物名称和描述做关键词匹配
-- `maxPrice = 预算金额 × (1 + 浮动比例/100)`
-- 注意：`parseBudget()` 中浮动用 `isNaN()` 判断而非 `||`，因为 `0` 是合法值
+### 安全防护
+- IP 限流：express-rate-limit，每 IP 每小时最多 10 次 `/api/recommend` 请求
+- 访问口令（可选）：设置 `ACCESS_CODE` 环境变量后，请求需带 `?code=` 参数
 
-### 降级策略
-- AI 生成失败 → 返回 500 错误
-- AI 过滤失败 → 跳过过滤，使用原始结果
-- 过滤后全部被剔除 → 回退到原始结果 + 程序化过滤
-- 最终无结果 → 返回 500 错误
+### 生产环境
+- `NODE_ENV=production` 时，Express 托管 `dist/` 静态文件
+- SPA fallback：非 `/api/` 请求返回 `index.html`
+- 端口：`process.env.PORT || 3001`
+- 前端 `src/api.ts` 通过 `/api/recommend` 调用后端，不再直接调 DeepSeek
 
 ## 关键类型
 
@@ -149,6 +145,27 @@ npm run dev:server   # API 后端（端口 3001）
 - 前端开发时 Vite 自动代理 `/api` 到 `localhost:3001`（需在 `vite.config.ts` 中配置）
 - `.env` 文件中需要 `DEEPSEEK_API_KEY=your_key`
 - 构建：`npm run build`（tsc 类型检查 + vite 构建）
+
+## Tauri 桌面应用打包
+
+项目已配置 Tauri v2，可打包为 Windows .exe 安装程序。
+
+VS Community 2026 安装在 `D:\APPs\Microsoft Visual Studio\18\Community\`。
+
+**构建命令**（bash 中执行）：
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+export MSVC="D:/APPs/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717"
+export SDK="C:/Program Files (x86)/Windows Kits/10"
+export SDK_VER=$(ls "$SDK/Lib" | head -1)
+export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="$MSVC/bin/Hostx64/x64/link.exe"
+export LIB="$MSVC/lib/x64;$SDK/Lib/$SDK_VER/um/x64;$SDK/Lib/$SDK_VER/ucrt/x64"
+export INCLUDE="$MSVC/include;$SDK/Include/$SDK_VER/ucrt;$SDK/Include/$SDK_VER/shared;$SDK/Include/$SDK_VER/um"
+npx tauri build
+```
+
+输出：`src-tauri/target/release/bundle/nsis/gift-advisor_0.1.0_x64-setup.exe`（~8 MB）
 
 ## 重要约定与已知陷阱
 

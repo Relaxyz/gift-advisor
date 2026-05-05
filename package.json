@@ -5,16 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "tsx server.ts",
-    "dev:all": "tsx server.ts & vite",
+    "dev:server": "tsx watch server.ts",
+    "dev:all": "tsx watch server.ts & vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.ts",
+    "tauri": "tauri"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/cli": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.0",
     "openai": "^6.35.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
