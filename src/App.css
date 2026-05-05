@@ -599,6 +599,7 @@
   transition: all 0.2s ease;
   font-weight: 600;
   box-shadow: 0 4px 18px rgba(170, 59, 255, 0.3);
+  white-space: nowrap;
 }
 
 .btn-primary:hover {
@@ -625,6 +626,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .btn-secondary:hover {
@@ -920,6 +922,7 @@
 
 .rec-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
 }

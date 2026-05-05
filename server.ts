@@ -12,11 +12,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json());
 
-// ---- 限流：每个 IP 每小时最多 10 次推荐请求 ----
+// ---- 限流：可在此修改次数限制 ----
+const RATE_LIMIT_MAX = 10;          // 每小时每 IP 最多请求次数
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 时间窗口（1小时）
 // 携带有效 UNLIMITED_KEY 的请求可跳过限流
 const recommendLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_MAX,
   skip: (req) => {
     const key = (req.query.unlimited_key as string)
       || (req.headers['x-unlimited-key'] as string);
