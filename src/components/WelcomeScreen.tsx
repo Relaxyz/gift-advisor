@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { HistoryItem } from '../types';
 
 interface Props {
@@ -6,7 +7,34 @@ interface Props {
   onLoadHistory?: (item: HistoryItem) => void;
 }
 
+const UNLIMITED_STORAGE_KEY = 'gift-advisor-unlimited-key';
+
+function getSavedKey(): string {
+  try {
+    return localStorage.getItem(UNLIMITED_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
 export default function WelcomeScreen({ onStart, history = [], onLoadHistory }: Props) {
+  const [showUnlimited, setShowUnlimited] = useState(false);
+  const [unlimitedKey, setUnlimitedKey] = useState(getSavedKey);
+  const [saved, setSaved] = useState(false);
+
+  const handleSaveKey = () => {
+    const trimmed = unlimitedKey.trim();
+    if (trimmed) {
+      localStorage.setItem(UNLIMITED_STORAGE_KEY, trimmed);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } else {
+      localStorage.removeItem(UNLIMITED_STORAGE_KEY);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  };
+
   return (
     <div className="welcome-screen">
       <div className="welcome-content">
@@ -46,6 +74,29 @@ export default function WelcomeScreen({ onStart, history = [], onLoadHistory }: 
           </div>
         </div>
       )}
+
+      <div className="unlimited-section">
+        <button
+          className="unlimited-toggle"
+          onClick={() => setShowUnlimited(!showUnlimited)}
+        >
+          {showUnlimited ? '收起' : '解除限制'}
+        </button>
+        {showUnlimited && (
+          <div className="unlimited-input-group">
+            <input
+              type="password"
+              className="unlimited-input"
+              placeholder="输入密钥以解除每小时次数限制…"
+              value={unlimitedKey}
+              onChange={(e) => setUnlimitedKey(e.target.value)}
+            />
+            <button className="btn-secondary" onClick={handleSaveKey}>
+              {saved ? '已保存' : '保存'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

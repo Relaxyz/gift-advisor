@@ -6,6 +6,7 @@ interface Props {
   questions: Question[];
   onEdit: (index: number) => void;
   onSubmit: () => void;
+  onRestart: () => void;
   loading?: boolean;
 }
 
@@ -109,7 +110,7 @@ ${rows}
 `;
 }
 
-export default function ReviewPanel({ answers, questions, onEdit, onSubmit, loading }: Props) {
+export default function ReviewPanel({ answers, questions, onEdit, onSubmit, onRestart, loading }: Props) {
   const handleExport = () => {
     const md = exportMarkdown(answers, questions);
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
@@ -150,9 +151,14 @@ export default function ReviewPanel({ answers, questions, onEdit, onSubmit, load
         >
           {loading ? 'AI 正在挑选...' : '确认并生成推荐'}
         </button>
-        <button className="btn-secondary" onClick={handleExport}>
-          导出问卷 (.md)
-        </button>
+        <div className="review-actions-row">
+          <button className="btn-secondary" onClick={handleExport}>
+            导出问卷 (.md)
+          </button>
+          <button className="btn-secondary" onClick={onRestart}>
+            返回首页
+          </button>
+        </div>
       </div>
     </div>
   );

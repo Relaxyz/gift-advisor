@@ -17,6 +17,17 @@ export const questions: Question[] = [
     ],
   },
   {
+    id: 'gender',
+    title: '收礼人的性别是？',
+    subtitle: '不同性别偏好不同风格的礼物',
+    type: 'single',
+    options: [
+      { value: '男', label: '男', icon: '👨' },
+      { value: '女', label: '女', icon: '👩' },
+      { value: '其他', label: '其他/不想透露', icon: '👤' },
+    ],
+  },
+  {
     id: 'budget',
     title: '你的预算范围是多少？',
     subtitle: '可以是大概范围，AI会帮你把关',

@@ -13,9 +13,16 @@ const app = express();
 app.use(express.json());
 
 // ---- 限流：每个 IP 每小时最多 10 次推荐请求 ----
+// 携带有效 UNLIMITED_KEY 的请求可跳过限流
 const recommendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
+  skip: (req) => {
+    const key = (req.query.unlimited_key as string)
+      || (req.headers['x-unlimited-key'] as string);
+    const secret = process.env.UNLIMITED_KEY;
+    return !!(key && secret && key === secret);
+  },
   message: { error: '请求太频繁，请稍后再试（每小时限 10 次）' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -65,6 +72,7 @@ function formatAnswers(answers: Answers): string {
 
   // 基础信息
   lines.push(`- 与收礼人关系：${answers.relationship || '未指定'}`);
+  lines.push(`- 收礼人性别：${answers.gender || '未指定'}`);
 
   const budget = parseBudget(answers);
   lines.push(`- 预算范围：${budget.min} - ${budget.max} 元`);
@@ -149,14 +157,15 @@ ${answersText}
 ## 推荐规则
 1. **价格硬约束**：礼物价格必须在 ${budget.min} - ${budget.max} 元范围内
 2. **关系适配**：礼物必须适合"${answers.relationship}"关系
-3. **场合适配**：礼物必须适合"${answers.occasion}"场合
-4. **优先考虑**：如果用户提到了具体想法（如"跑鞋"），优先推荐这类礼物
-5. **排除规则**：
+3. **性别适配**：礼物必须适合"${answers.gender || '不限'}"性别
+4. **场合适配**：礼物必须适合"${answers.occasion}"场合
+5. **优先考虑**：如果用户提到了具体想法（如"跑鞋"），优先推荐这类礼物
+6. **排除规则**：
 ${exclusionRules.map(r => `   - ${r}`).join('\n')}
 
-6. **多样性**：推荐不同类型的礼物，覆盖不同价位
-7. **实用性**：根据性格特点调整推荐（务实理性倾向实用，感性浪漫倾向仪式感）
-8. **中国文化背景**：考虑中国节日、中国电商常见品牌和价格
+7. **多样性**：推荐不同类型的礼物，覆盖不同价位
+8. **实用性**：根据性格特点调整推荐（务实理性倾向实用，感性浪漫倾向仪式感）
+9. **中国文化背景**：考虑中国节日、中国电商常见品牌和价格
 
 ## 输出要求
 请生成 8-12 个候选礼物，返回 JSON 格式：

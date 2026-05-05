@@ -189,3 +189,45 @@ App.css 不会自动生效。必须在 `App.tsx` 中 `import './App.css'`。否�
 ### 废弃文件（已删除）
 - `src/data/gifts.ts` — 旧静态礼物库（31 件），已删除，推荐由 AI 自由生成
 - `src/utils/recommender.ts` — 旧本地打分算法，已删除，推荐逻辑在 server.ts
+
+## 线上部署与同步
+
+项目部署在腾讯云服务器，通过 pm2 管理进程。
+
+| 项目 | 值 |
+|------|-----|
+| 服务器 IP | `43.139.105.225` |
+| SSH 登录 | `ssh ubuntu@43.139.105.225` |
+| 项目路径 | `~/gift` |
+| 进程管理 | `pm2`（进程名 `gift-advisor`） |
+| 访问地址 | http://43.139.105.225:3001/ |
+
+### 本地修改后同步到服务器（完整流程）
+
+每次本地修改代码并推送到 GitHub 后，必须在服务器上执行以下步骤：
+
+```bash
+# 1. SSH 登录服务器
+ssh ubuntu@43.139.105.225
+
+# 2. 拉取最新代码
+cd ~/gift
+git pull origin master
+
+# 3. 安装依赖（如有新增）
+npm install
+
+# 4. 重新构建前端（关键！dist/ 在 .gitignore 中，git pull 不会更新）
+npm run build
+
+# 5. 重启服务
+pm2 restart gift-advisor
+```
+
+### 关键陷阱
+
+- **dist/ 必须重建**：`dist/` 在 `.gitignore` 中，`git pull` 不会更新它。每次前端有改动，必须在服务器上 `npm run build`，否则前端 JS 与后端 API 可能不匹配，导致页面报错
+- **GitHub 使用 SSH**：国内 HTTPS 被墙，两边 remote 都已设为 `git@github.com:Relaxyz/gift-advisor.git`
+- **API 限流**：每 IP 每小时 10 次 `/api/recommend` 请求，频繁测试会触发限流
+- **构建要求**：服务器 `npm run build` 需要 `devDependencies`（typescript、vite 等），注意 `npm install` 时不要用 `--production`
+- **查看日志**：`pm2 logs gift-advisor` 可查看运行日志排查 API 错误

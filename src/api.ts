@@ -1,9 +1,22 @@
 import type { Answers, Gift, FilterQuestion } from './types';
 
+function getUnlimitedKey(): string | null {
+  try {
+    return localStorage.getItem('gift-advisor-unlimited-key');
+  } catch {
+    return null;
+  }
+}
+
 async function post(path: string, body: unknown) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const key = getUnlimitedKey();
+  if (key) {
+    headers['x-unlimited-key'] = key;
+  }
   const res = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) {

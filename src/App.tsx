@@ -351,6 +351,7 @@ export default function App() {
             questions={questions}
             onEdit={handleEditFromReview}
             onSubmit={handleSubmit}
+            onRestart={handleRestart}
             loading={loading}
           />
         )}
