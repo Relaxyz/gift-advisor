@@ -86,7 +86,7 @@ function formatAnswers(answers: Answers): string {
   }
 
   const allInterests = [
-    ...answers.interests,
+    ...(answers.interests || []),
     ...(answers.interestsCustom?.trim() ? [answers.interestsCustom] : []),
   ];
   if (allInterests.length > 0) {
@@ -94,7 +94,7 @@ function formatAnswers(answers: Answers): string {
   }
 
   const allPersonality = [
-    ...answers.personality,
+    ...(answers.personality || []),
     ...(answers.personalityCustom?.trim() ? [answers.personalityCustom] : []),
   ];
   if (allPersonality.length > 0) {
@@ -103,7 +103,7 @@ function formatAnswers(answers: Answers): string {
 
   // 排除偏好
   const allExclusions = [
-    ...answers.exclusions,
+    ...(answers.exclusions || []),
     ...(answers.exclusionsCustom?.trim() ? [answers.exclusionsCustom] : []),
   ];
   if (allExclusions.length > 0) {
