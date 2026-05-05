@@ -3,67 +3,100 @@ import { SUPPLEMENT_VALUE } from '../types';
 
 interface Props {
   answers: Answers;
-  activeQuestions: Question[];
-  onEdit: (qId: AnswerKey) => void;
-  onConfirm: () => void;
+  questions: Question[];
+  onEdit: (index: number) => void;
+  onSubmit: () => void;
   loading?: boolean;
-  error?: boolean;
 }
 
-const labelMap: Record<AnswerKey, string> = {
+const labelMap: Partial<Record<AnswerKey, string>> = {
   relationship: '关系',
   budget: '预算',
-  gender: '性别',
-  ageRange: '年龄段',
+  ageRange: '年龄',
   occasion: '场合',
-  knowDuration: '认识时长',
-  interests: '兴趣爱好',
-  personality: '性格类型',
-  giftStyle: '礼物风格',
-  restrictions: '特殊限制',
+  specificWants: '具体想法',
+  interests: '兴趣性格',
+  exclusions: '排除偏好',
+  additionalNotes: '补充说明',
 };
 
-function getDisplayValue(key: AnswerKey, answers: Answers, allQuestions: Question[]): string {
-  const value = answers[key];
-  const supp = answers.supplement?.[key]?.trim();
-  const q = allQuestions.find((q) => q.id === key);
+function getDisplayValue(q: Question, answers: Answers): string {
+  const key = q.id;
+  const value = answers[key as keyof Answers];
 
-  // 预算类型：显示金额 + 浮动比例
-  if (q?.type === 'budget' && value) {
+  // 预算类型
+  if (q.type === 'budget' && value) {
     const flex = answers.budgetFlexibility || '0';
     return `${value} ${q.budgetUnit ?? '元'}（浮动 ±${flex}%）`;
   }
 
-  // 滑块类型：显示数值 + 单位
-  if (q?.type === 'slider' && value) {
+  // 滑块类型
+  if (q.type === 'slider' && value) {
     return `${value} ${q.sliderUnit ?? ''}`;
   }
 
+  // 文本类型
+  if (q.type === 'text' || q.type === 'textarea') {
+    return (value as string) || '—';
+  }
+
+  // 混合类型
+  if (q.type === 'mixed') {
+    const arr = value as string[];
+    const parts: string[] = [];
+
+    if (Array.isArray(arr)) {
+      // 从标签组中获取标签标签
+      const allTags = q.tagGroups?.flatMap(g => g.tags) || [];
+      parts.push(...arr.map(v => {
+        const tag = allTags.find(t => t.value === v);
+        return tag?.label || v;
+      }));
+    }
+
+    // 添加自由输入
+    if (key === 'interests' && answers.interestsCustom?.trim()) {
+      parts.push(answers.interestsCustom);
+    }
+    if (key === 'exclusions' && answers.exclusionsCustom?.trim()) {
+      parts.push(answers.exclusionsCustom);
+    }
+
+    return parts.length > 0 ? parts.join('、') : '—';
+  }
+
+  // 数组类型
   if (Array.isArray(value)) {
     const parts = value
       .filter((v) => v !== SUPPLEMENT_VALUE)
       .map((v) => {
-        const opt = q?.options.find((o) => o.value === v);
+        const opt = q.options?.find((o) => o.value === v);
         return opt?.label ?? v;
       });
-    if (value.includes(SUPPLEMENT_VALUE) && supp) {
-      parts.push(supp);
-    } else if (supp) {
-      parts.push(supp);
-    }
+    const supp = answers.supplement?.[key]?.trim();
+    if (supp) parts.push(supp);
     return parts.join('、') || '—';
   }
 
-  if (value === SUPPLEMENT_VALUE) return supp || '—';
-  return value || '—';
+  // 单选类型
+  if (value === SUPPLEMENT_VALUE) {
+    return answers.supplement?.[key]?.trim() || '—';
+  }
+
+  const opt = q.options?.find((o) => o.value === value);
+  return (opt?.label ?? (value as string)) || '—';
 }
 
-function exportMarkdown(answers: Answers, activeQuestions: Question[]): string {
+function exportMarkdown(answers: Answers, questions: Question[]): string {
   const now = new Date();
   const time = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  const rows = activeQuestions
-    .map((q) => `| ${labelMap[q.id]} | ${getDisplayValue(q.id, answers, activeQuestions)} |`)
+  const rows = questions
+    .map((q) => {
+      const label = labelMap[q.id] ?? q.title;
+      const value = getDisplayValue(q, answers);
+      return `| ${label} | ${value} |`;
+    })
     .join('\n');
 
   return `# 礼物推荐问卷
@@ -76,9 +109,9 @@ ${rows}
 `;
 }
 
-export default function ReviewPanel({ answers, activeQuestions, onEdit, onConfirm, loading, error }: Props) {
+export default function ReviewPanel({ answers, questions, onEdit, onSubmit, loading }: Props) {
   const handleExport = () => {
-    const md = exportMarkdown(answers, activeQuestions);
+    const md = exportMarkdown(answers, questions);
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -96,28 +129,26 @@ export default function ReviewPanel({ answers, activeQuestions, onEdit, onConfir
       </div>
 
       <div className="review-grid">
-        {activeQuestions.map((q) => (
+        {questions.map((q, index) => (
           <div
             key={q.id}
             className="review-item"
-            onClick={() => onEdit(q.id)}
+            onClick={() => onEdit(index)}
           >
-            <span className="review-label">{labelMap[q.id]}</span>
-            <span className="review-value">{getDisplayValue(q.id, answers, activeQuestions)}</span>
+            <span className="review-label">{labelMap[q.id] || q.title}</span>
+            <span className="review-value">{getDisplayValue(q, answers)}</span>
             <span className="review-edit-hint">修改</span>
           </div>
         ))}
       </div>
 
-      {error && (
-        <p className="api-error">
-          AI 服务暂时不可用，请确认后端服务已启动（npm run dev:server）或稍后重试。
-        </p>
-      )}
-
       <div className="review-actions">
-        <button className="btn-primary btn-large" onClick={onConfirm} disabled={loading}>
-          {loading ? 'AI 正在为你挑选...' : error ? '重新尝试' : '确认并生成推荐'}
+        <button
+          className="btn-primary btn-large"
+          onClick={onSubmit}
+          disabled={loading}
+        >
+          {loading ? 'AI 正在挑选...' : '确认并生成推荐'}
         </button>
         <button className="btn-secondary" onClick={handleExport}>
           导出问卷 (.md)

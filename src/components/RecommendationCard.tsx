@@ -1,12 +1,8 @@
-import type { Gift, Answers, Question } from '../types';
-import { SUPPLEMENT_VALUE } from '../types';
+import type { Gift } from '../types';
 
 interface Props {
   gifts: Gift[];
-  answers: Answers;
-  activeQuestions: Question[];
   onRestart: () => void;
-  onBack: () => void;
 }
 
 function formatPrice(min: number, max: number) {
@@ -14,51 +10,9 @@ function formatPrice(min: number, max: number) {
   return `约 ¥${min} - ¥${max}`;
 }
 
-const labelMap: Record<string, string> = {
-  relationship: '关系',
-  budget: '预算',
-  gender: '性别',
-  ageRange: '年龄段',
-  occasion: '场合',
-  knowDuration: '认识时长',
-  interests: '兴趣爱好',
-  personality: '性格类型',
-  giftStyle: '礼物风格',
-  restrictions: '特殊限制',
-};
-
-function getDisplayValue(key: string, answers: Answers, allQuestions: Question[]): string {
-  const value = answers[key as keyof Answers];
-  const supp = answers.supplement?.[key as keyof Answers]?.trim();
-  const q = allQuestions.find((q) => q.id === key);
-
-  if (q?.type === 'budget' && value) {
-    const flex = answers.budgetFlexibility || '0';
-    return `${value} ${q.budgetUnit ?? '元'}（浮动 ±${flex}%）`;
-  }
-  if (q?.type === 'slider' && value) {
-    return `${value} ${q.sliderUnit ?? ''}`;
-  }
-
-  if (Array.isArray(value)) {
-    const parts = value
-      .filter((v: string) => v !== SUPPLEMENT_VALUE)
-      .map((v: string) => q?.options.find((o) => o.value === v)?.label ?? v);
-    if (supp) parts.push(supp);
-    return parts.join('、') || '—';
-  }
-
-  if (value === SUPPLEMENT_VALUE) return supp || '—';
-  return String(value || '—');
-}
-
-function exportMarkdown(gifts: Gift[], answers: Answers, activeQuestions: Question[]): string {
+function exportMarkdown(gifts: Gift[]): string {
   const now = new Date();
   const time = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-  const filterRows = activeQuestions
-    .map((q) => `| ${labelMap[q.id] ?? q.id} | ${getDisplayValue(q.id, answers, activeQuestions)} |`)
-    .join('\n');
 
   const giftBlocks = gifts
     .map((g, i) => {
@@ -77,21 +31,15 @@ function exportMarkdown(gifts: Gift[], answers: Answers, activeQuestions: Questi
 
 > 生成时间：${time}
 
-## 筛选条件
-
-| 问题 | 答案 |
-|------|------|
-${filterRows}
-
 ## 推荐方案
 
 ${giftBlocks}
 `;
 }
 
-export default function RecommendationCard({ gifts, answers, activeQuestions, onRestart, onBack }: Props) {
+export default function RecommendationCard({ gifts, onRestart }: Props) {
   const handleExport = () => {
-    const md = exportMarkdown(gifts, answers, activeQuestions);
+    const md = exportMarkdown(gifts);
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -111,9 +59,6 @@ export default function RecommendationCard({ gifts, answers, activeQuestions, on
       {gifts.length === 0 && (
         <div className="rec-empty">
           <p>没有找到完全匹配的礼物，试试调整你的条件？</p>
-          <button className="btn-secondary" onClick={onBack}>
-            返回修改
-          </button>
         </div>
       )}
 
@@ -150,9 +95,6 @@ export default function RecommendationCard({ gifts, answers, activeQuestions, on
       </div>
 
       <div className="rec-actions">
-        <button className="btn-secondary" onClick={onBack}>
-          返回修改条件
-        </button>
         <button className="btn-secondary" onClick={handleExport}>
           导出结果 (.md)
         </button>

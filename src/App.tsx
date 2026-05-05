@@ -1,299 +1,386 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
-import type { Step, Answers, AnswerKey, Gift, HistoryRecord } from './types';
-import { SUPPLEMENT_VALUE } from './types';
+import type { Answers, Gift, FilterQuestion, HistoryItem, AnswerKey } from './types';
 import { questions } from './data/questions';
-import { APP_VERSION } from './version';
 import WelcomeScreen from './components/WelcomeScreen';
 import ProgressBar from './components/ProgressBar';
 import QuestionCard from './components/QuestionCard';
 import ReviewPanel from './components/ReviewPanel';
 import RecommendationCard from './components/RecommendationCard';
+import CandidateFilter from './components/CandidateFilter';
+import { APP_VERSION } from './version';
+import { generateCandidates, filterCandidates } from './api';
 
-const SESSION_KEY = 'gift-advisor-session';
+const STORAGE_KEY = 'gift-advisor-session';
 const HISTORY_KEY = 'gift-advisor-history';
-const MAX_HISTORY = 5;
 
 const defaultAnswers: Answers = {
   relationship: '',
   budget: '',
-  gender: '',
+  budgetFlexibility: '20',
   ageRange: '',
   occasion: '',
-  knowDuration: '',
+  specificWants: '',
   interests: [],
+  interestsCustom: '',
   personality: [],
+  personalityCustom: '',
+  exclusions: [],
+  exclusionsCustom: '',
+  additionalNotes: '',
+  gender: '',
+  knowDuration: '',
   giftStyle: [],
   restrictions: [],
-  budgetFlexibility: '20',
   supplement: {},
 };
 
-function getActiveQuestions(answers: Answers) {
-  return questions.filter((q) => {
-    if (!q.skipWhen) return true;
-    const depVal = answers[q.skipWhen.key];
-    return !q.skipWhen.values.includes(depVal as string);
-  });
-}
-
-function loadSession(): { step: Step; questionIndex: number; answers: Answers; recommendations: Gift[] } | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data && typeof data.step === 'string') return data;
-  } catch { /* corrupted */ }
-  return null;
-}
-
-function saveSession(state: { step: Step; questionIndex: number; answers: Answers }) {
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(state));
-  } catch { /* quota exceeded */ }
-}
-
-function loadHistory(): HistoryRecord[] {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    if (!raw) return [];
-    const data = JSON.parse(raw);
-    if (Array.isArray(data)) return data.slice(0, MAX_HISTORY);
-  } catch { /* corrupted */ }
-  return [];
-}
-
-function saveHistory(records: HistoryRecord[]) {
-  try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(records.slice(0, MAX_HISTORY)));
-  } catch { /* quota exceeded */ }
-}
+type Step = 'welcome' | 'questionnaire' | 'review' | 'filtering' | 'recommendation';
 
 export default function App() {
-  const saved = loadSession();
-  const [step, setStep] = useState<Step>(saved?.step ?? 'welcome');
-  const [questionIndex, setQuestionIndex] = useState(saved?.questionIndex ?? 0);
-  const [answers, setAnswers] = useState<Answers>(saved?.answers ?? defaultAnswers);
-  const [recommendations, setRecommendations] = useState<Gift[]>(saved?.recommendations ?? []);
+  const [step, setStep] = useState<Step>('welcome');
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<Answers>(defaultAnswers);
   const [editingFromReview, setEditingFromReview] = useState(false);
+
+  // 筛选相关状态
+  const [candidates, setCandidates] = useState<Gift[]>([]);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [filterQuestion, setFilterQuestion] = useState<FilterQuestion | null>(null);
+  const [filterPhase, setFilterPhase] = useState<'select' | 'question'>('select');
+
+  const [recommendations, setRecommendations] = useState<Gift[]>([]);
   const [loading, setLoading] = useState(false);
-  const [apiError, setApiError] = useState(false);
-  const [history, setHistory] = useState<HistoryRecord[]>(loadHistory);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const activeQuestions = useMemo(() => getActiveQuestions(answers), [answers]);
+  // 历史记录
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
-  // 会话状态变更时持久化
+  // 从 localStorage 恢复会话
   useEffect(() => {
-    if (step === 'welcome') {
-      localStorage.removeItem(SESSION_KEY);
-    } else {
-      saveSession({ step, questionIndex, answers });
-    }
-  }, [step, questionIndex, answers]);
-
-  const handleAnswerChange = useCallback((key: AnswerKey, value: string | string[]) => {
-    setAnswers((prev) => {
-      const next = { ...prev, [key]: value };
-      // 当 relationship 变更导致 activeQuestions 变化时，修正 questionIndex
-      const prevActive = getActiveQuestions(prev);
-      const nextActive = getActiveQuestions(next);
-      if (prevActive.length !== nextActive.length) {
-        // 如果当前问题被跳过，自动前进到下一个有效问题
-        const currentId = prevActive[questionIndex]?.id;
-        const newIdx = nextActive.findIndex((q) => q.id === currentId);
-        if (newIdx === -1 && questionIndex >= nextActive.length) {
-          // 当前问题不在新列表中，跳到末尾
-          setTimeout(() => setQuestionIndex(nextActive.length - 1), 0);
+    const savedSession = localStorage.getItem(STORAGE_KEY);
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        if (parsed.step && parsed.answers) {
+          setStep(parsed.step);
+          setQuestionIndex(parsed.questionIndex || 0);
+          setAnswers({ ...defaultAnswers, ...parsed.answers });
+          if (parsed.candidates) setCandidates(parsed.candidates);
+          if (parsed.recommendations) setRecommendations(parsed.recommendations);
         }
+      } catch (e) {
+        console.error('Failed to parse saved session:', e);
       }
-      return next;
-    });
-  }, [questionIndex]);
+    }
 
-  const handleSupplementChange = useCallback((key: AnswerKey, text: string) => {
+    const savedHistory = localStorage.getItem(HISTORY_KEY);
+    if (savedHistory) {
+      try {
+        setHistory(JSON.parse(savedHistory));
+      } catch (e) {
+        console.error('Failed to parse history:', e);
+      }
+    }
+  }, []);
+
+  // 保存会话到 localStorage
+  useEffect(() => {
+    if (step !== 'welcome') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        step,
+        questionIndex,
+        answers,
+        candidates,
+        recommendations,
+      }));
+    }
+  }, [step, questionIndex, answers, candidates, recommendations]);
+
+  const currentQuestion = questions[questionIndex];
+  const isFirst = questionIndex === 0;
+  const isLast = questionIndex === questions.length - 1;
+
+  const getCurrentValue = (): string | string[] => {
+    const key = currentQuestion.id;
+    const val = answers[key as keyof Answers];
+    if (val === undefined || val === null) return '';
+    return val as string | string[];
+  };
+
+  const getSupplementText = (): string => {
+    return answers.supplement?.[currentQuestion.id] || '';
+  };
+
+  const getCustomText = (): string => {
+    if (currentQuestion.id === 'interests') return answers.interestsCustom || '';
+    if (currentQuestion.id === 'exclusions') return answers.exclusionsCustom || '';
+    return '';
+  };
+
+  const canProceed = (): boolean => {
+    if (currentQuestion.allowEmpty) return true;
+
+    const val = answers[currentQuestion.id as keyof Answers];
+    const type = currentQuestion.type;
+
+    if (type === 'text' || type === 'textarea') {
+      return typeof val === 'string' && val.trim() !== '';
+    }
+
+    if (type === 'slider' || type === 'budget') {
+      return val !== '' && val !== undefined;
+    }
+
+    if (type === 'mixed') {
+      const arr = val as string[];
+      return Array.isArray(arr) && arr.length > 0;
+    }
+
+    if (type === 'multi') {
+      const arr = val as string[];
+      const supp = answers.supplement?.[currentQuestion.id];
+      const hasSupp = supp ? supp.trim() !== '' : false;
+      return Array.isArray(arr) && (arr.length > 0 || hasSupp);
+    }
+
+    return val !== '' && val !== undefined;
+  };
+
+  const handleChange = (key: AnswerKey, value: string | string[]) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleSupplementChange = (key: AnswerKey, text: string) => {
     setAnswers((prev) => ({
       ...prev,
       supplement: { ...prev.supplement, [key]: text },
     }));
-  }, []);
+  };
 
-  const handleBudgetFlexibilityChange = useCallback((val: string) => {
-    setAnswers((prev) => ({ ...prev, budgetFlexibility: val }));
-  }, []);
-
-  const currentQ = () => activeQuestions[questionIndex];
-
-  const canProceed = (): boolean => {
-    const q = currentQ();
-    if (!q) return false;
-    const val = answers[q.id];
-    const suppText = (answers.supplement?.[q.id] ?? '').trim();
-
-    if (q.type === 'slider' || q.type === 'budget') return val !== '';
-
-    if (Array.isArray(val)) {
-      if (q.allowEmpty) return true;
-      if (val.length > 0) return true;
-      return suppText !== '';
+  const handleCustomChange = (key: AnswerKey, text: string) => {
+    if (key === 'interests') {
+      setAnswers((prev) => ({ ...prev, interestsCustom: text }));
+    } else if (key === 'exclusions') {
+      setAnswers((prev) => ({ ...prev, exclusionsCustom: text }));
     }
-
-    if (val === SUPPLEMENT_VALUE) return suppText !== '';
-    return val !== '';
   };
 
   const handleNext = () => {
-    if (editingFromReview) {
-      setEditingFromReview(false);
-      setStep('review');
-      return;
-    }
-    if (questionIndex < activeQuestions.length - 1) {
+    if (!isLast) {
       setQuestionIndex((i) => i + 1);
     } else {
-      // 跳过的问题自动填默认值
-      const finalAnswers = { ...answers };
-      if (!finalAnswers.knowDuration) {
-        finalAnswers.knowDuration = String(Math.min(Number(finalAnswers.ageRange) || 20, 30));
-      }
-      setAnswers(finalAnswers);
       setStep('review');
     }
   };
 
   const handlePrev = () => {
     if (editingFromReview) {
-      setEditingFromReview(false);
       setStep('review');
-      return;
-    }
-    if (questionIndex > 0) {
+      setEditingFromReview(false);
+    } else if (!isFirst) {
       setQuestionIndex((i) => i - 1);
     }
   };
 
-  const handleEdit = (qId: AnswerKey) => {
-    const idx = activeQuestions.findIndex((q) => q.id === qId);
-    if (idx === -1) return;
-    setQuestionIndex(idx);
-    setEditingFromReview(true);
+  const handleStart = () => {
     setStep('questionnaire');
+    setQuestionIndex(0);
+    setAnswers(defaultAnswers);
+    setCandidates([]);
+    setRecommendations([]);
+    setSelectedCandidateIds([]);
+    setFilterQuestion(null);
+    setApiError(null);
   };
 
-  const handleConfirm = async () => {
-    // 跳过的问题自动填默认值
-    const finalAnswers = { ...answers };
-    if (!finalAnswers.knowDuration) {
-      finalAnswers.knowDuration = String(Math.min(Number(finalAnswers.ageRange) || 20, 30));
-    }
+  const handleEditFromReview = (idx: number) => {
+    setQuestionIndex(idx);
+    setStep('questionnaire');
+    setEditingFromReview(true);
+  };
 
+  // 提交问卷 -> 获取候选礼物
+  const handleSubmit = async () => {
     setLoading(true);
-    setApiError(false);
+    setApiError(null);
+
     try {
-      const resp = await fetch('/api/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers: finalAnswers }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.gifts?.length > 0) {
-          setRecommendations(data.gifts);
-          setStep('recommendation');
-
-          const record: HistoryRecord = {
-            timestamp: Date.now(),
-            answers: structuredClone(finalAnswers),
-            gifts: data.gifts,
-          };
-          setHistory((prev) => {
-            const next = [record, ...prev].slice(0, MAX_HISTORY);
-            saveHistory(next);
-            return next;
-          });
-
-          setLoading(false);
-          return;
-        }
-      }
-      setApiError(true);
-    } catch {
-      setApiError(true);
+      const gifts = await generateCandidates(answers);
+      setCandidates(gifts);
+      setStep('filtering');
+      setFilterPhase('select');
+    } catch (e: unknown) {
+      console.error('API error:', e);
+      setApiError(e instanceof Error ? e.message : '请求失败，请重试');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  // 用户筛选后 -> 获取最终推荐或筛选问题
+  const handleFilterConfirm = async (selectedIds: string[]) => {
+    setLoading(true);
+    setSelectedCandidateIds(selectedIds);
+
+    try {
+      const result = await filterCandidates(candidates, selectedIds);
+
+      if (result.filterQuestion) {
+        setFilterQuestion(result.filterQuestion);
+        setFilterPhase('question');
+      } else {
+        setRecommendations(result.gifts);
+        setStep('recommendation');
+        saveToHistory(answers, result.gifts);
+      }
+    } catch (e: unknown) {
+      console.error('API error:', e);
+      setApiError(e instanceof Error ? e.message : '请求失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 回答筛选问题 -> 获取最终推荐
+  const handleFilterAnswer = async (answer: string) => {
+    setLoading(true);
+
+    try {
+      const result = await filterCandidates(candidates, selectedCandidateIds, answer);
+      setRecommendations(result.gifts);
+      setStep('recommendation');
+      saveToHistory(answers, result.gifts);
+    } catch (e: unknown) {
+      console.error('API error:', e);
+      setApiError(e instanceof Error ? e.message : '请求失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveToHistory = (ans: Answers, gifts: Gift[]) => {
+    const newItem: HistoryItem = {
+      timestamp: new Date().toISOString(),
+      answers: ans,
+      gifts,
+    };
+    const updated = [newItem, ...history].slice(0, 5);
+    setHistory(updated);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
   };
 
   const handleRestart = () => {
-    setAnswers(defaultAnswers);
-    setQuestionIndex(0);
-    setRecommendations([]);
     setStep('welcome');
+    setQuestionIndex(0);
+    setAnswers(defaultAnswers);
+    setCandidates([]);
+    setRecommendations([]);
+    setSelectedCandidateIds([]);
+    setFilterQuestion(null);
+    setApiError(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
-  const handleHistorySelect = (record: HistoryRecord) => {
-    setAnswers(record.answers);
-    setRecommendations(record.gifts);
+  // 从历史记录加载
+  const handleLoadHistory = (item: HistoryItem) => {
+    setAnswers(item.answers);
+    setRecommendations(item.gifts);
     setStep('recommendation');
   };
 
-  return (
-    <div className="app-container">
-      <span className="version-tag">v{APP_VERSION}</span>
-      {step === 'welcome' && (
-        <WelcomeScreen
-          onStart={() => {
-            setAnswers(defaultAnswers);
-            setQuestionIndex(0);
-            setRecommendations([]);
-            setStep('questionnaire');
-          }}
-          history={history}
-          onHistorySelect={handleHistorySelect}
-        />
-      )}
+  // 根据 step 渲染进度条
+  const getProgressStep = (): number => {
+    if (step === 'welcome') return -1;
+    if (step === 'questionnaire') return questionIndex;
+    if (step === 'review') return questions.length;
+    if (step === 'filtering') return questions.length + 0.5;
+    if (step === 'recommendation') return questions.length + 1;
+    return 0;
+  };
 
-      {step === 'questionnaire' && (
-        <>
-          {!editingFromReview && (
-            <ProgressBar current={questionIndex + 1} total={activeQuestions.length} />
-          )}
+  return (
+    <div className="app">
+      <div className="app-header">
+        <h1 className="app-title">礼物推荐</h1>
+        {step !== 'welcome' && (
+          <ProgressBar
+            current={getProgressStep()}
+            total={questions.length + 1}
+          />
+        )}
+      </div>
+
+      <div className="app-content">
+        {step === 'welcome' && (
+          <WelcomeScreen
+            onStart={handleStart}
+            history={history}
+            onLoadHistory={handleLoadHistory}
+          />
+        )}
+
+        {step === 'questionnaire' && currentQuestion && (
           <QuestionCard
-            question={currentQ()}
-            value={answers[currentQ().id]}
-            supplementText={answers.supplement?.[currentQ().id] ?? ''}
-            onChange={handleAnswerChange}
+            question={currentQuestion}
+            value={getCurrentValue()}
+            supplementText={getSupplementText()}
+            onChange={handleChange}
             onSupplementChange={handleSupplementChange}
             onNext={handleNext}
             onPrev={handlePrev}
-            isFirst={questionIndex === 0 && !editingFromReview}
-            isLast={editingFromReview || questionIndex === activeQuestions.length - 1}
+            isFirst={isFirst}
+            isLast={isLast}
             canProceed={canProceed()}
             isSingleEdit={editingFromReview}
             budgetFlexibility={answers.budgetFlexibility}
-            onBudgetFlexibilityChange={handleBudgetFlexibilityChange}
+            onBudgetFlexibilityChange={(v) =>
+              setAnswers((prev) => ({ ...prev, budgetFlexibility: v }))
+            }
+            customText={getCustomText()}
+            onCustomChange={handleCustomChange}
           />
-        </>
-      )}
+        )}
 
-      {step === 'review' && (
-        <ReviewPanel
-          answers={answers}
-          activeQuestions={activeQuestions}
-          onEdit={handleEdit}
-          onConfirm={handleConfirm}
-          loading={loading}
-          error={apiError}
-        />
-      )}
+        {step === 'review' && (
+          <ReviewPanel
+            answers={answers}
+            questions={questions}
+            onEdit={handleEditFromReview}
+            onSubmit={handleSubmit}
+            loading={loading}
+          />
+        )}
 
-      {step === 'recommendation' && (
-        <RecommendationCard
-          gifts={recommendations}
-          answers={answers}
-          activeQuestions={activeQuestions}
-          onRestart={handleRestart}
-          onBack={() => setStep('review')}
-        />
-      )}
+        {step === 'filtering' && (
+          <CandidateFilter
+            candidates={candidates}
+            onConfirm={handleFilterConfirm}
+            filterQuestion={filterPhase === 'question' ? filterQuestion || undefined : undefined}
+            onFilterAnswer={handleFilterAnswer}
+            loading={loading}
+          />
+        )}
+
+        {step === 'recommendation' && (
+          <RecommendationCard
+            gifts={recommendations}
+            onRestart={handleRestart}
+          />
+        )}
+
+        {apiError && (
+          <div className="error-banner">
+            <p>{apiError}</p>
+            <button onClick={() => setApiError(null)}>关闭</button>
+          </div>
+        )}
+      </div>
+
+      <div className="version-tag">v{APP_VERSION}</div>
     </div>
   );
 }

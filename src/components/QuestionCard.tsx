@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import type { Question, AnswerKey } from '../types';
+import { useRef, useEffect, useState } from 'react';
+import type { Question, AnswerKey, TagGroup } from '../types';
 import { SUPPLEMENT_VALUE } from '../types';
 
 interface Props {
@@ -16,6 +16,9 @@ interface Props {
   isSingleEdit?: boolean;
   budgetFlexibility?: string;
   onBudgetFlexibilityChange?: (value: string) => void;
+  // 混合题专用
+  customText?: string;
+  onCustomChange?: (key: AnswerKey, text: string) => void;
 }
 
 function isSelected(value: string | string[], optValue: string, isMulti: boolean): boolean {
@@ -37,30 +40,53 @@ export default function QuestionCard({
   isSingleEdit,
   budgetFlexibility,
   onBudgetFlexibilityChange,
+  customText,
+  onCustomChange,
 }: Props) {
   const isMulti = question.type === 'multi';
   const isSlider = question.type === 'slider';
   const isBudget = question.type === 'budget';
+  const isText = question.type === 'text';
+  const isTextarea = question.type === 'textarea';
+  const isMixed = question.type === 'mixed';
+
   const inputRef = useRef<HTMLInputElement>(null);
-  const selectedArr = isMulti ? (value as string[]) : [value as string];
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const [localCustomText, setLocalCustomText] = useState(customText || '');
+
+  const selectedArr = isMulti || isMixed ? (value as string[]) : [value as string];
+
   const hasSelection = isSlider || isBudget
     ? value !== ''
-    : isMulti
-      ? (value as string[]).length > 0 || supplementText.trim() !== ''
-      : value !== '';
+    : isText || isTextarea
+      ? (value as string).trim() !== ''
+      : isMulti || isMixed
+        ? (value as string[]).length > 0 || supplementText.trim() !== '' || (customText?.trim() || '') !== ''
+        : value !== '';
 
   const isSupplementSelected = isMulti
     ? selectedArr.includes(SUPPLEMENT_VALUE)
     : value === SUPPLEMENT_VALUE;
 
   useEffect(() => {
+    if ((isText || isTextarea) && (inputRef.current || textareaRef.current)) {
+      if (isTextarea) {
+        textareaRef.current?.focus();
+      } else {
+        inputRef.current?.focus();
+      }
+    }
+  }, [isText, isTextarea]);
+
+  useEffect(() => {
     if (isSupplementSelected && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [isSupplementSelected]);
+  }, [isSupplementSelected, isMulti]);
 
   const handleSelect = (optValue: string) => {
-    if (isMulti) {
+    if (isMulti || isMixed) {
       const current = (value as string[]) || [];
       const next = current.includes(optValue)
         ? current.filter((v) => v !== optValue)
@@ -83,8 +109,17 @@ export default function QuestionCard({
     onChange(question.id, val);
   };
 
+  const handleTextChange = (val: string) => {
+    onChange(question.id, val);
+  };
+
+  const handleCustomTextChange = (val: string) => {
+    setLocalCustomText(val);
+    onCustomChange?.(question.id, val);
+  };
+
   const getLabel = (optValue: string) =>
-    question.options.find((o) => o.value === optValue)?.label ?? optValue;
+    question.options?.find((o) => o.value === optValue)?.label ?? optValue;
 
   const displayValue = (): string => {
     if (isBudget) {
@@ -94,17 +129,50 @@ export default function QuestionCard({
     if (isSlider) {
       return `${value} ${question.sliderUnit ?? ''}`;
     }
-    if (isMulti) {
+    if (isText || isTextarea) {
+      return (value as string) || '';
+    }
+    if (isMulti || isMixed) {
       const parts = (value as string[])
         .filter((v) => v !== SUPPLEMENT_VALUE)
         .map(getLabel);
       if (supplementText.trim()) {
         parts.push(supplementText.trim());
       }
+      if (isMixed && localCustomText.trim()) {
+        parts.push(localCustomText.trim());
+      }
       return parts.join('、');
     }
     if (value === SUPPLEMENT_VALUE) return supplementText || '补充';
     return getLabel(value as string);
+  };
+
+  // 渲染标签组
+  const renderTagGroups = () => {
+    if (!question.tagGroups) return null;
+
+    return question.tagGroups.map((group: TagGroup, groupIndex: number) => (
+      <div key={groupIndex} className="tag-group">
+        <div className="tag-group-title">{group.title}</div>
+        <div className="options-grid">
+          {group.tags.map((tag) => {
+            const sel = isSelected(value, tag.value, true);
+            return (
+              <button
+                key={tag.value}
+                className={`option-btn ${sel ? 'selected' : ''}`}
+                onClick={() => handleSelect(tag.value)}
+              >
+                {tag.icon && <span className="option-icon">{tag.icon}</span>}
+                <span>{tag.label}</span>
+                {sel && <span className="check-mark">&#10003;</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ));
   };
 
   return (
@@ -176,10 +244,63 @@ export default function QuestionCard({
           </div>
         )}
 
-        {/* ===== 选项按钮 ===== */}
-        {!isSlider && (
+        {/* ===== 纯文本输入 ===== */}
+        {isText && (
+          <div className="text-input-container">
+            <input
+              ref={inputRef}
+              type="text"
+              className="text-input"
+              placeholder={question.placeholder || '请输入...'}
+              value={value as string}
+              onChange={(e) => handleTextChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canProceed) {
+                  onNext();
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {/* ===== 多行文本输入 ===== */}
+        {isTextarea && (
+          <div className="textarea-container">
+            <textarea
+              ref={textareaRef}
+              className="textarea-input"
+              placeholder={question.placeholder || '请输入...'}
+              value={value as string}
+              onChange={(e) => handleTextChange(e.target.value)}
+              rows={4}
+            />
+          </div>
+        )}
+
+        {/* ===== 混合题（标签组 + 自由输入） ===== */}
+        {isMixed && (
+          <div className="mixed-container">
+            {renderTagGroups()}
+
+            {question.allowFreeInput && (
+              <div className="free-input-section">
+                <div className="free-input-label">补充说明</div>
+                <input
+                  type="text"
+                  className="text-input"
+                  placeholder={question.freeInputPlaceholder || '补充其他信息...'}
+                  value={localCustomText}
+                  onChange={(e) => handleCustomTextChange(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== 选项按钮（普通多选/单选） ===== */}
+        {!isSlider && !isBudget && !isText && !isTextarea && !isMixed && (
           <div className="options-grid">
-            {question.options.map((opt) => {
+            {question.options?.map((opt) => {
               const sel = isSelected(value, opt.value, isMulti);
               return (
                 <button
@@ -218,7 +339,7 @@ export default function QuestionCard({
           />
         )}
 
-        {hasSelection && (
+        {hasSelection && !isText && !isTextarea && (
           <div className="selected-answer">
             <span className="selected-label">你的选择：</span>
             <span className="selected-value">{displayValue()}</span>

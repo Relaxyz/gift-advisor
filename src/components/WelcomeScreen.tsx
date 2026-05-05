@@ -1,54 +1,47 @@
-import type { HistoryRecord } from '../types';
+import type { HistoryItem } from '../types';
 
 interface Props {
   onStart: () => void;
-  history: HistoryRecord[];
-  onHistorySelect: (record: HistoryRecord) => void;
+  history?: HistoryItem[];
+  onLoadHistory?: (item: HistoryItem) => void;
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  return `${mm}-${dd} ${hh}:${mi}`;
-}
-
-function summary(record: HistoryRecord): string {
-  const r = record.answers.relationship;
-  const b = record.answers.budget;
-  const top = record.gifts[0]?.name ?? '';
-  return `${r ? r : '?'} | ¥${b || '?'} — ${top}`;
-}
-
-export default function WelcomeScreen({ onStart, history, onHistorySelect }: Props) {
+export default function WelcomeScreen({ onStart, history = [], onLoadHistory }: Props) {
   return (
     <div className="welcome-screen">
-      <div className="welcome-icon">🎁</div>
-      <h1>选礼物助手</h1>
-      <p className="welcome-desc">
-        不知道送什么礼物？<br />
-        回答几个简单问题，让我帮你找到最合适的选择。
-      </p>
-      <button className="btn-primary start-btn" onClick={onStart}>
-        开始挑选
-      </button>
+      <div className="welcome-content">
+        <h1 className="welcome-title">礼物推荐</h1>
+        <p className="welcome-subtitle">
+          回答几个问题，AI 帮你找到最合适的礼物
+        </p>
+        <button className="btn-primary btn-large start-btn" onClick={onStart}>
+          开始推荐
+        </button>
+      </div>
 
-      {history.length > 0 && (
+      {history.length > 0 && onLoadHistory && (
         <div className="history-section">
-          <h3 className="history-title">最近记录</h3>
+          <h3 className="history-title">最近推荐</h3>
           <div className="history-list">
-            {history.map((rec, i) => (
-              <button
-                key={i}
+            {history.map((item, index) => (
+              <div
+                key={index}
                 className="history-item"
-                onClick={() => onHistorySelect(rec)}
+                onClick={() => onLoadHistory(item)}
               >
-                <span className="history-time">{formatTime(rec.timestamp)}</span>
-                <span className="history-summary">{summary(rec)}</span>
-                <span className="history-arrow">→</span>
-              </button>
+                <div className="history-info">
+                  <span className="history-occasion">
+                    {item.answers.occasion || '礼物推荐'}
+                  </span>
+                  <span className="history-time">
+                    {new Date(item.timestamp).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="history-gifts">
+                  {item.gifts.slice(0, 3).map(g => g.name).join('、')}
+                  {item.gifts.length > 3 && '...'}
+                </div>
+              </div>
             ))}
           </div>
         </div>

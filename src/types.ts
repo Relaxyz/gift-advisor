@@ -1,49 +1,32 @@
-export type Step = 'welcome' | 'questionnaire' | 'review' | 'recommendation';
+// 问题类型
+export type QuestionType = 'single' | 'multi' | 'slider' | 'budget' | 'text' | 'textarea' | 'mixed';
 
-export interface Answers {
-  relationship: string;
-  budget: string;
-  gender: string;
-  ageRange: string;
-  occasion: string;
-  knowDuration: string;
-  interests: string[];
-  personality: string[];
-  giftStyle: string[];
-  restrictions: string[];
-  budgetFlexibility: string;
-  supplement: Partial<Record<AnswerKey, string>>;
+// 性格标签和兴趣标签分组
+export interface TagGroup {
+  title: string;
+  tags: { value: string; label: string; icon?: string }[];
 }
 
-/** 选项值为该常量时表示用户选了"补充"并填写了自定义内容 */
-export const SUPPLEMENT_VALUE = '__supplement__';
-
-export type AnswerKey = keyof Answers;
-
-export type QuestionType = 'single' | 'multi' | 'slider' | 'budget';
-
+// 问题选项
 export interface QuestionOption {
   value: string;
   label: string;
   icon?: string;
 }
 
+// 问题定义
 export interface Question {
   id: AnswerKey;
   title: string;
   subtitle?: string;
   type: QuestionType;
-  options: QuestionOption[];
-  /** 该题不显示"补充"选项 */
-  noSupplement?: boolean;
-  /** 多选时允许空选（不选任何选项也是有效答案） */
-  allowEmpty?: boolean;
-  /** slider 类型配置 */
+  options?: QuestionOption[];
+  // 滑块相关
   sliderMin?: number;
   sliderMax?: number;
   sliderStep?: number;
   sliderUnit?: string;
-  /** budget 双滑块配置 */
+  // 预算相关
   budgetMin?: number;
   budgetMax?: number;
   budgetStep?: number;
@@ -51,11 +34,73 @@ export interface Question {
   flexMin?: number;
   flexMax?: number;
   flexStep?: number;
-  flexUnit?: string;
-  /** 跳过条件：当指定答案匹配列表中的任意值时，此题不显示 */
-  skipWhen?: { key: AnswerKey; values: string[] };
+  // 混合题相关
+  tagGroups?: TagGroup[];
+  allowFreeInput?: boolean;
+  freeInputPlaceholder?: string;
+  // 通用
+  allowEmpty?: boolean;
+  noSupplement?: boolean;
+  placeholder?: string;
 }
 
+// 答案键名
+export type AnswerKey =
+  | 'relationship'
+  | 'budget'
+  | 'gender'
+  | 'ageRange'
+  | 'occasion'
+  | 'knowDuration'
+  | 'interests'
+  | 'personality'
+  | 'giftStyle'
+  | 'restrictions'
+  // 新增字段
+  | 'specificWants'
+  | 'interestsCustom'
+  | 'personalityCustom'
+  | 'exclusions'
+  | 'exclusionsCustom'
+  | 'additionalNotes'
+  | 'budgetFlexibility'
+  | 'supplement';
+
+// 补充值常量
+export const SUPPLEMENT_VALUE = '__supplement__';
+
+// 新的答案类型
+export interface Answers {
+  // === 基础层 ===
+  relationship: string;
+  budget: string;
+  budgetFlexibility: string;
+  ageRange: string;
+  occasion: string;
+
+  // === 偏好层 ===
+  specificWants?: string;         // 具体想要什么（填空）
+  interests: string[];            // 兴趣标签
+  interestsCustom?: string;       // 兴趣自由输入
+  personality: string[];          // 性格标签
+  personalityCustom?: string;     // 性格自由输入
+
+  // === 排除层 ===
+  exclusions: string[];           // 排除标签
+  exclusionsCustom?: string;      // 排除自由输入（含送过的礼物）
+
+  // === 补充层 ===
+  additionalNotes?: string;       // 额外说明
+
+  // === 保留兼容 ===
+  gender: string;
+  knowDuration: string;
+  giftStyle: string[];
+  restrictions: string[];
+  supplement: Partial<Record<AnswerKey, string>>;
+}
+
+// 礼物
 export interface Gift {
   id: string;
   name: string;
@@ -66,8 +111,34 @@ export interface Gift {
   searchKeywords: string;
 }
 
-export interface HistoryRecord {
-  timestamp: number;
+// 筛选问题
+export interface FilterQuestion {
+  question: string;
+  options: string[];
+}
+
+// API响应阶段
+export type RecommendPhase = 'candidates' | 'filter-question' | 'final';
+
+// API响应
+export interface RecommendResponse {
+  phase: RecommendPhase;
+  candidates?: Gift[];
+  filterQuestion?: FilterQuestion;
+  finalGifts?: Gift[];
+}
+
+// API请求
+export interface RecommendRequest {
+  answers: Answers;
+  candidates?: Gift[];
+  selectedCandidates?: string[];
+  secondRoundAnswer?: string;
+}
+
+// 历史记录
+export interface HistoryItem {
+  timestamp: string;
   answers: Answers;
   gifts: Gift[];
 }
